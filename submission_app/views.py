@@ -190,3 +190,44 @@ class ApplicantQuestionListView(APIView):
             })
         
         return Response(questions_data, status=status.HTTP_200_OK)
+
+
+class FinalizeApplicationView(APIView):
+    """
+    Finalize the user's application if they have submitted 15 mandatory questions.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        
+        # Count submissions for MANDATORY questions
+        mandatory_submission_count = Submission.objects.filter(
+            user=user,
+            question__q_type=Question.QuestionType.MANDATORY
+        ).count()
+        
+        # Check if requirement is met
+        if mandatory_submission_count != 15:
+            return Response(
+                {
+                    "detail": f"Application cannot be finalized. You have submitted {mandatory_submission_count} mandatory questions. 15 mandatory submissions are required.",
+                    "mandatory_submission_count": mandatory_submission_count,
+                    "required_count": 15,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        # Set is_finalized to True
+        if isinstance(user, User):
+            user.is_finalized = True
+            user.save(update_fields=["is_finalized"])
+        
+        return Response(
+            {
+                "detail": "Application finalized successfully.",
+                "is_finalized": True,
+            },
+            status=status.HTTP_200_OK,
+        )
