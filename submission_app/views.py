@@ -1,12 +1,14 @@
 from django.utils import timezone
 from django.db import transaction
+from django.db.models import Count
 from django.contrib.auth import get_user_model
 from typing import Any, Mapping
 
 from rest_framework import serializers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.viewsets import ModelViewSet
+from rest_framework.permissions import IsAuthenticated, BasePermission
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 
@@ -231,3 +233,85 @@ class FinalizeApplicationView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class IsAdminUser(BasePermission):
+    """
+    Custom permission to only allow users with role='ADMIN' to access the view.
+    """
+
+    def has_permission(self, request, view):
+        # Check if user is authenticated
+        if not request.user or not request.user.is_authenticated:
+            return False
+        
+        # Check if user has ADMIN role
+        if isinstance(request.user, User):
+            return request.user.role == User.Roles.ADMIN
+        
+        return False
+
+
+class QuestionSerializer(serializers.ModelSerializer):
+    """
+    Serializer for Question model.
+    """
+
+    class Meta:
+        model = Question
+        fields = ['id', 'title', 'leetcode_link', 'q_type', 'difficulty', 'is_active']
+
+
+class QuestionAdminViewSet(ModelViewSet):
+    """
+    ViewSet for managing Question objects. Only accessible by ADMIN users.
+    Implements soft-deletion by setting is_active=False instead of deleting.
+    """
+
+    queryset = Question.objects.all()
+    serializer_class = QuestionSerializer
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def destroy(self, request, *args, **kwargs):
+        """
+        Soft-delete: Set is_active=False instead of actually deleting the question.
+        """
+        instance = self.get_object()
+        instance.is_active = False
+        instance.save(update_fields=['is_active'])
+        
+        return Response(
+            {"detail": "Question deactivated successfully."},
+            status=status.HTTP_200_OK,
+        )
+
+
+class ApplicantTrackerView(APIView):
+    """
+    Admin view to track all applicants, ranked by their total submission count.
+    """
+
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def get(self, request, *args, **kwargs):
+        # Get all applicants with their submission counts, ordered by count (descending)
+        applicants = User.objects.filter(
+            role=User.Roles.APPLICANT
+        ).annotate(
+            total_submissions=Count('submissions')
+        ).order_by('-total_submissions')
+        
+        # Build response data
+        applicants_data = []
+        for rank, applicant in enumerate(applicants, start=1):
+            applicants_data.append({
+                'rank': rank,
+                'id': applicant.id,
+                'username': applicant.username,
+                'email': applicant.email,
+                'name': applicant.get_full_name() or applicant.first_name or applicant.username,
+                'total_submissions': applicant.total_submissions,
+                'is_finalized': applicant.is_finalized,
+            })
+        
+        return Response(applicants_data, status=status.HTTP_200_OK)
