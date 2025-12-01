@@ -38,6 +38,8 @@ class RegisterSerializer(serializers.Serializer):
         if invitation.expiry_date <= timezone.now():
             raise serializers.ValidationError("This invitation token has expired.")
         
+        # Store the invitation instance in the serializer context for later use
+        self.context['invitation'] = invitation
         return value
 
 
