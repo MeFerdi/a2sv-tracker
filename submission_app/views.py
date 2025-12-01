@@ -13,7 +13,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .models import InvitationToken, User, Question, Submission
-from .serializers import RegisterSerializer, UserSerializer, UserSerializer
+from .serializers import RegisterSerializer, UserSerializer
 
 
 class InviteRegisterView(APIView):
@@ -32,11 +32,12 @@ class InviteRegisterView(APIView):
         password = data["password"]
 
         # Retrieve the InvitationToken (already validated in serializer)
-        invitation = InvitationToken.objects.select_for_update().get(token=token_value)
 
         UserModel = get_user_model()
 
         with transaction.atomic():
+            # Retrieve the InvitationToken with row-level lock
+            invitation = InvitationToken.objects.select_for_update().get(token=token_value)
             # Create new User with email from token, name, role APPLICANT, and hashed password
             user = UserModel.objects.create_user(
                 username=invitation.email,
