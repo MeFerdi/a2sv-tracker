@@ -1,5 +1,6 @@
 from django.utils import timezone
 from django.db import transaction
+from django.db.models import Count
 from django.contrib.auth import get_user_model
 from typing import Any, Mapping
 
@@ -283,3 +284,34 @@ class QuestionAdminViewSet(ModelViewSet):
             {"detail": "Question deactivated successfully."},
             status=status.HTTP_200_OK,
         )
+
+
+class ApplicantTrackerView(APIView):
+    """
+    Admin view to track all applicants, ranked by their total submission count.
+    """
+
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def get(self, request, *args, **kwargs):
+        # Get all applicants with their submission counts, ordered by count (descending)
+        applicants = User.objects.filter(
+            role=User.Roles.APPLICANT
+        ).annotate(
+            total_submissions=Count('submissions')
+        ).order_by('-total_submissions')
+        
+        # Build response data
+        applicants_data = []
+        for rank, applicant in enumerate(applicants, start=1):
+            applicants_data.append({
+                'rank': rank,
+                'id': applicant.id,
+                'username': applicant.username,
+                'email': applicant.email,
+                'name': applicant.get_full_name() or applicant.first_name or applicant.username,
+                'total_submissions': applicant.total_submissions,
+                'is_finalized': applicant.is_finalized,
+            })
+        
+        return Response(applicants_data, status=status.HTTP_200_OK)
