@@ -15,8 +15,42 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from rest_framework_simplejwt.views import TokenRefreshView
+
+from submission_app.views import (
+    InviteRegisterView,
+    LoginView,
+    ProfileView,
+    ApplicantQuestionListView,
+    FinalizeApplicationView,
+    QuestionAdminViewSet,
+    ApplicantTrackerView,
+)
+
+# Router for ViewSets
+router = DefaultRouter()
+router.register(r'admin/questions', QuestionAdminViewSet, basename='question')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    
+    # JWT Token endpoints
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    
+    # Authentication endpoints
+    path('api/auth/register/', InviteRegisterView.as_view(), name='invite_register'),
+    path('api/auth/login/', LoginView.as_view(), name='login'),
+    
+    # Applicant endpoints
+    path('api/profile/', ProfileView.as_view(), name='profile'),
+    path('api/questions/', ApplicantQuestionListView.as_view(), name='applicant_questions'),
+    path('api/finalize/', FinalizeApplicationView.as_view(), name='finalize_application'),
+    
+    # Admin endpoints
+    path('api/admin/applicants/', ApplicantTrackerView.as_view(), name='applicant_tracker'),
+    
+    # Include router URLs for ViewSets
+    path('api/', include(router.urls)),
 ]
