@@ -32,11 +32,12 @@ class InviteRegisterView(APIView):
         password = data["password"]
 
         # Retrieve the InvitationToken (already validated in serializer)
-        invitation = InvitationToken.objects.select_for_update().get(token=token_value)
 
         UserModel = get_user_model()
 
         with transaction.atomic():
+            # Retrieve the InvitationToken with row-level lock
+            invitation = InvitationToken.objects.select_for_update().get(token=token_value)
             # Create new User with email from token, name, role APPLICANT, and hashed password
             user = UserModel.objects.create_user(
                 username=invitation.email,
