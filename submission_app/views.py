@@ -6,7 +6,8 @@ from typing import Any, Mapping
 from rest_framework import serializers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.viewsets import ModelViewSet
+from rest_framework.permissions import IsAuthenticated, BasePermission
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 
@@ -229,5 +230,56 @@ class FinalizeApplicationView(APIView):
                 "detail": "Application finalized successfully.",
                 "is_finalized": True,
             },
+            status=status.HTTP_200_OK,
+        )
+
+
+class IsAdminUser(BasePermission):
+    """
+    Custom permission to only allow users with role='ADMIN' to access the view.
+    """
+
+    def has_permission(self, request, view):
+        # Check if user is authenticated
+        if not request.user or not request.user.is_authenticated:
+            return False
+        
+        # Check if user has ADMIN role
+        if isinstance(request.user, User):
+            return request.user.role == User.Roles.ADMIN
+        
+        return False
+
+
+class QuestionSerializer(serializers.ModelSerializer):
+    """
+    Serializer for Question model.
+    """
+
+    class Meta:
+        model = Question
+        fields = ['id', 'title', 'leetcode_link', 'q_type', 'difficulty', 'is_active']
+
+
+class QuestionAdminViewSet(ModelViewSet):
+    """
+    ViewSet for managing Question objects. Only accessible by ADMIN users.
+    Implements soft-deletion by setting is_active=False instead of deleting.
+    """
+
+    queryset = Question.objects.all()
+    serializer_class = QuestionSerializer
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def destroy(self, request, *args, **kwargs):
+        """
+        Soft-delete: Set is_active=False instead of actually deleting the question.
+        """
+        instance = self.get_object()
+        instance.is_active = False
+        instance.save(update_fields=['is_active'])
+        
+        return Response(
+            {"detail": "Question deactivated successfully."},
             status=status.HTTP_200_OK,
         )
