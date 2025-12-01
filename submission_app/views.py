@@ -13,7 +13,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .models import InvitationToken, User, Question, Submission
-from .serializers import RegisterSerializer, UserSerializer, UserSerializer
+from .serializers import RegisterSerializer, UserSerializer
 
 
 class InviteRegisterView(APIView):
