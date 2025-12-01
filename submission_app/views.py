@@ -10,15 +10,10 @@ from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated, BasePermission
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.contrib.auth import authenticate
+from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .models import InvitationToken, User, Question, Submission
-
-
-class InviteRegisterSerializer(serializers.Serializer):
-    token = serializers.CharField()
-    name = serializers.CharField(max_length=150)
-    password = serializers.CharField(write_only=True)
+from .serializers import RegisterSerializer, UserSerializer
 
 
 class InviteRegisterView(APIView):
@@ -27,7 +22,8 @@ class InviteRegisterView(APIView):
     """
 
     def post(self, request, *args, **kwargs):
-        serializer = InviteRegisterSerializer(data=request.data)
+        # Validate incoming data using RegisterSerializer
+        serializer = RegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         data: Mapping[str, Any] = serializer.validated_data
@@ -35,41 +31,23 @@ class InviteRegisterView(APIView):
         name = data["name"]
         password = data["password"]
 
-        try:
-            invitation = InvitationToken.objects.select_for_update().get(token=token_value)
-        except InvitationToken.DoesNotExist:
-            return Response(
-                {"detail": "Invalid invitation token."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # Validate token usage and expiry
-        if invitation.used:
-            return Response(
-                {"detail": "This invitation token has already been used."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if invitation.expiry_date <= timezone.now():
-            return Response(
-                {"detail": "This invitation token has expired."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        # Retrieve the InvitationToken (already validated in serializer)
 
         UserModel = get_user_model()
 
         with transaction.atomic():
-            # Create user with email from token, role APPLICANT
+            # Retrieve the InvitationToken with row-level lock
+            invitation = InvitationToken.objects.select_for_update().get(token=token_value)
+            # Create new User with email from token, name, role APPLICANT, and hashed password
             user = UserModel.objects.create_user(
                 username=invitation.email,
                 email=invitation.email,
                 password=password,
             )
-            # Ensure role is set to APPLICANT if the custom User model is used
+            # Set role to APPLICANT and name
             if isinstance(user, User):
                 # Runtime assignment is valid; directive silences strict type-checker complaint
                 user.role = User.Roles.APPLICANT  # pyright: ignore[reportAssignmentType]
-               
                 user.first_name = name
                 user.save()
 
@@ -77,7 +55,7 @@ class InviteRegisterView(APIView):
             invitation.used = True
             invitation.save(update_fields=["used"])
 
-        # Issue JWT tokens
+        # Generate JWT tokens using djangorestframework-simplejwt
         refresh = RefreshToken.for_user(user)
 
         return Response(
@@ -89,40 +67,12 @@ class InviteRegisterView(APIView):
         )
 
 
-class LoginSerializer(serializers.Serializer):
-    email = serializers.EmailField()
-    password = serializers.CharField(write_only=True)
-
-
-class LoginView(APIView):
+class LoginView(TokenObtainPairView):
     """
-    Standard login view that returns JWT tokens on successful authentication.
+    Standard JWT login view that returns access and refresh tokens.
+    Inherits from TokenObtainPairView for standard JWT authentication.
     """
-
-    def post(self, request, *args, **kwargs):
-        serializer = LoginSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        data: Mapping[str, Any] = serializer.validated_data
-
-        email = data["email"]
-        password = data["password"]
-
-        # Assuming email is used as the username field
-        user = authenticate(request, username=email, password=password)
-        if user is None:
-            return Response(
-                {"detail": "Invalid credentials."},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
-
-        refresh = RefreshToken.for_user(user)
-        return Response(
-            {
-                "refresh": str(refresh),
-                "access": str(refresh.access_token),
-            },
-            status=status.HTTP_200_OK,
-        )
+    pass
 
 
 class ProfileView(APIView):
@@ -134,14 +84,8 @@ class ProfileView(APIView):
 
     def get(self, request, *args, **kwargs):
         user = request.user
-        return Response(
-            {
-                "name": user.get_full_name() or user.first_name or user.username,
-                "email": getattr(user, "email", ""),
-                "is_finalized": getattr(user, "is_finalized", False),
-            },
-            status=status.HTTP_200_OK,
-        )
+        serializer = UserSerializer(user)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class ApplicantQuestionListView(APIView):
