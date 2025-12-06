@@ -91,8 +91,11 @@ function AuthGuard({ allowedRoles }: { allowedRoles: string[] }) {
     // Role is authorized, render the protected route content
     return <Outlet />; 
   } else {
-
-    const userDefaultPath = `/${user && user.role.toLowerCase()}`;
+    // If user is null/undefined, redirect to login. Otherwise, redirect to their default dashboard.
+    if (!user || !user.role) {
+      return <Navigate to="/login" replace />;
+    }
+    const userDefaultPath = `/${user.role.toLowerCase()}`;
     return <Navigate to={userDefaultPath} replace />;
   }
 }
