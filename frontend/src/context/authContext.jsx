@@ -14,7 +14,8 @@ const decodeUser = (token) => {
         return {
             id: payload.user_id,
             email: payload.email,
-            role: payload.role, 
+            role: payload.role,
+            name: payload.name,
         };
     } catch (error) {
         console.error("Failed to decode token:", error);
