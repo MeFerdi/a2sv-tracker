@@ -1,37 +1,39 @@
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext'; 
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, Outlet } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext.tsx'; 
+import { useAuth } from './utils/Auth.tsx'
 
-// Import your page components
-import LoginPage from './pages/LoginPage';
-import TokenRegisterPage from './pages/TokenRegisterPage';
-import ApplicantDashboard from './pages/ApplicantDashboard';
-import AdminDashboard from './pages/Admin/AdminDashboard';
-import QuestionManagementPage from './pages/Admin/QuestionManagementPage';
-import NotFound from './pages/NotFound'; // You'll need to create this simple page
+// Import page components
+import LoginPage from './pages/Auth/LoginPage.tsx';
+import TokenRegisterPage from './pages/Auth/TokenRegisterPage.tsx';
+import ApplicantDashboard from './pages/Applicant/ApplicantDashboard.tsx';
+import AdminDashboard from './pages/Admin/AdminDashboard.tsx';
+import QuestionManagementPage from './pages/Admin/QuestionManagementPage.tsx';
+import ApplicantTrackerPage from './pages/Admin/ApplicantTrackerPage.tsx';
+import NotFound from './pages/Shared/NotFound.tsx';
 
 // --- 1. Router Setup ---
 function App() {
   return (
     <Router>
-      {/* 2. Wrap the entire app in the AuthProvider */}
       <AuthProvider>
         <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<TokenRegisterPage />} /> {/* Handles ?token=... */}
+          <Route path="/register" element={<TokenRegisterPage />} />
           
           {/* Protected Routes (Uses AuthGuard) */}
-          <Route path="/applicant" element={<AuthGuard allowedRoles={['APPLICANT']} />}>
-            <Route index element={<ApplicantDashboard />} />
+          <Route element={<AuthGuard allowedRoles={['APPLICANT']} />}>
+            <Route path="/applicant" element={<ApplicantDashboard />} />
           </Route>
 
-          <Route path="/admin" element={<AuthGuard allowedRoles={['ADMIN']} />}>
-            <Route index element={<AdminDashboard />} />
-            <Route path="questions" element={<QuestionManagementPage />} />
+          <Route element={<AuthGuard allowedRoles={['ADMIN']} />}>
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin/questions" element={<QuestionManagementPage />} />
+            <Route path="/admin/applicants" element={<ApplicantTrackerPage />} />
           </Route>
           
-          {/* Default and Catch-all Routes */}
-          <Route path="/" element={<Navigate to="/applicant" replace />} />
+          {/* Dynamic Default Route and Catch-all Routes */}
+          <Route path="/" element={<HomeRedirect />} /> {/* NEW: Dynamic redirect component */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </AuthProvider>
@@ -41,33 +43,56 @@ function App() {
 
 export default App;
 
-// --- 3. AuthGuard Component for Route Protection (Required for protected routes) ---
+// --- 2. NEW: HomeRedirect Component ---
 
 /**
- * A wrapper component to protect routes based on authentication status and user role.
+ * Redirects the user to the correct dashboard based on their role after login.
+ * This replaces the problematic static <Navigate to="/applicant" />.
  */
-function AuthGuard({ allowedRoles }) {
+function HomeRedirect() {
+    const { isAuthenticated, user, isLoading } = useAuth();
+    
+    if (isLoading) {
+        return <div>Loading authentication state...</div>;
+    }
+    
+    if (!isAuthenticated) {
+        // If not logged in, they should go to the login page
+        return <Navigate to="/login" replace />;
+    }
+    
+    // Logged in: redirect based on role
+    if (user && user.role.toLowerCase() === 'admin') {
+        return <Navigate to="/admin" replace />;
+    }
+    
+    // Default to applicant route
+    return <Navigate to="/applicant" replace />;
+}
+
+
+// --- 3. AuthGuard Component (Simplified and Corrected) ---
+
+function AuthGuard({ allowedRoles }: { allowedRoles: string[] }) {
   const { isAuthenticated, user, isLoading } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
-    // Show a loading screen while checking authentication status
     return <div>Loading authentication state...</div>; 
   }
 
   if (!isAuthenticated) {
-    // User is not logged in, redirect them to the login page
-    // Store current location to redirect back after login
+    // Redirect to login, preserving the path they were trying to access
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   // Check if the user's role is included in the allowedRoles list
   if (user && allowedRoles.includes(user.role)) {
-    // Role is authorized, render the child component (Outlet)
+    // Role is authorized, render the protected route content
     return <Outlet />; 
   } else {
-    // User is logged in but unauthorized for this route (e.g., APPLICANT accessing /admin)
-    // Redirect to a known safe route for their role
-    return <Navigate to={`/${user.role.toLowerCase()}`} replace />;
+
+    const userDefaultPath = `/${user && user.role.toLowerCase()}`;
+    return <Navigate to={userDefaultPath} replace />;
   }
 }
