@@ -2,12 +2,12 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, Outlet }
 import { AuthProvider, useAuth } from './context/authContext'; 
 
 // Import your page components
-import LoginPage from './pages/LoginPage';
-import TokenRegisterPage from './pages/TokenRegisterPage';
-import ApplicantDashboard from './pages/ApplicantDashboard';
+import LoginPage from './pages/Auth/LoginPage';
+import TokenRegisterPage from './pages/Auth/TokenRegisterPage';
+import ApplicantDashboard from './pages/Applicant/ApplicantDashboard';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 import QuestionManagementPage from './pages/Admin/QuestionManagementPage';
-import NotFound from './pages/NotFound'; // You'll need to create this simple page
+import NotFound from './pages/Shared/NotFound'; // You'll need to create this simple page
 
 // --- 1. Router Setup ---
 function App() {
