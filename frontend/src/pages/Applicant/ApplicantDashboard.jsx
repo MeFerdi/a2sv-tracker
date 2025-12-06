@@ -1,5 +1,5 @@
 import React from 'react';
-import { useAuth } from '../../context/AuthContext'; // Import context for user info
+import { useAuth } from '../../context/authContext'; // Import context for user info
 // import QuestionList from '@/components/dashboard/QuestionList';
 // import FinalizeButton from '@/components/dashboard/FinalizeButton';
 
