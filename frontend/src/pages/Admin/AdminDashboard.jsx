@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 const AdminDashboard = () => {
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
   
   return (
     <div className="p-8">
