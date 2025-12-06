@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // 1. Define the Base URL
-const BASE_URL = 'http://localhost:8000/api'; 
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
 const axiosInstance = axios.create({
     baseURL: BASE_URL,
@@ -41,7 +41,7 @@ axiosInstance.interceptors.response.use(
         const originalRequest = error.config;
         
         // Check for 401 Unauthorized error AND ensure it hasn't been retried already
-        if (error.response.status === 401 && !originalRequest._retry) {
+        if (error.response?.status === 401 && !originalRequest._retry) {
             originalRequest._retry = true;
             
             const refreshToken = localStorage.getItem('refresh');
