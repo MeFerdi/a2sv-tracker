@@ -1,14 +1,8 @@
-import React from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useAuth } from '../../context/authContext';
-// Placeholder imports for ShadCN components:
-// import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-// import { Input } from '@/components/ui/input';
-// import { Button } from '@/components/ui/button';
-import { useToast } from '@/components/ui/use-toast'; 
+import { useAuth } from '../../utils/Auth';
 
 // Define the validation schema
 const formSchema = z.object({
@@ -19,7 +13,7 @@ const formSchema = z.object({
 const LoginForm = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const { toast } = useToast(); // Placeholder for ShadCN toast
+  const { toast } = useToast();
 
   // 1. Initialize the form
   const form = useForm({
@@ -33,7 +27,7 @@ const LoginForm = () => {
   const { isSubmitting } = form.formState;
 
   // 2. Handle Form Submission
-  const onSubmit = async (values) => {
+  const onSubmit = async (values: { email: string; password: string; }) => {
     try {
       // Call the context function to handle API login
       const result = await login(values.email, values.password);
@@ -42,6 +36,9 @@ const LoginForm = () => {
       console.log("Login successful! User:", result.user);
 
       // 3. Redirect based on role
+      if (!result.user) {
+        throw new Error("User information not available after login.");
+      }
       const userRole = result.user.role.toLowerCase();
       
       if (userRole === 'admin') {
@@ -52,7 +49,11 @@ const LoginForm = () => {
 
     } catch (error) {
       // Handle API errors (e.g., 401 Unauthorized from Django)
-      const errorMessage = error.response?.data?.detail || "Login failed. Check your email and password.";
+      let errorMessage = "Login failed. Check your email and password.";
+      if (typeof error === "object" && error !== null && "response" in error) {
+        const err = error as { response?: { data?: { detail?: string } } };
+        errorMessage = err.response?.data?.detail || errorMessage;
+      }
       toast({ title: "Error", description: errorMessage, variant: "destructive" });
       console.error("Login failed:", errorMessage);
       form.resetField('password'); // Clear password field on failure
@@ -61,7 +62,6 @@ const LoginForm = () => {
 
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-      {/* ⚠️ NOTE: Replace the divs with actual ShadCN <Form>, <FormField>, <Input>, and <Button> components */}
 
       {/* Email Field */}
       <div className="space-y-2">
@@ -100,3 +100,13 @@ const LoginForm = () => {
 };
 
 export default LoginForm;
+
+type ToastOptions = {
+  title: string;
+  description?: string;
+  variant?: string;
+};
+
+function useToast(): { toast: (options: ToastOptions) => void } {
+  throw new Error('Function not implemented.');
+}

@@ -1,30 +1,24 @@
-import { createContext, useState, useCallback, useContext } from 'react';
-import { jwtDecode } from 'jwt-decode';
-import axiosInstance from '../api/axiosClient'; // Import the configured Axios instance
+import { createContext, useState, useCallback } from 'react';
+import axiosInstance from '../api/axiosClient.ts'; // Import the configured Axios instance
 import { useNavigate } from 'react-router-dom';
+import { decodeUser } from '../utils/useAuth.tsx';
 
 // 1. Create the Context
-const AuthContext = createContext();
-
-// Function to decode user data from an access token
-const decodeUser = (token) => {
-    try {
-        const payload = jwtDecode(token);
-        // The role (ADMIN or APPLICANT) is typically stored in the token payload
-        return {
-            id: payload.user_id,
-            email: payload.email,
-            role: payload.role,
-            name: payload.name,
-        };
-    } catch (error) {
-        console.error("Failed to decode token:", error);
-        return null;
-    }
-};
+// eslint-disable-next-line react-refresh/only-export-components
+export const AuthContext = createContext<{
+    user: { id: string; email: string; role: string } | null;
+    authTokens: { access: string; refresh: string } | null;
+    isLoading: boolean;
+    isAuthenticated: boolean;
+    registerWithToken: (token: string, name: string, password: string) => Promise<{ success: boolean; user: { id: string; email: string; role: string } | null }>;
+    login: (email: string, password: string) => Promise<{ success: boolean; user: { id: string; email: string; role: string } | null }>;
+    logout: () => void;
+} | undefined>(undefined);
 
 // 2. Create the Provider Component
-export const AuthProvider = ({ children }) => {
+import type { PropsWithChildren } from 'react';
+
+export const AuthProvider = ({ children }: PropsWithChildren<object>) => {
     const navigate = useNavigate();
     
     // Initialize state with tokens from localStorage or null
@@ -41,12 +35,10 @@ export const AuthProvider = ({ children }) => {
 
     const [isLoading, setIsLoading] = useState(false);
 
-// ------------------------------------------------------------------
 // Core Authentication Functions
-// ------------------------------------------------------------------
 
     // 1. Register with Invite Token
-    const registerWithToken = useCallback(async (token, name, password) => {
+    const registerWithToken = useCallback(async (token: string, name: string, password: string) => {
         setIsLoading(true);
         try {
             const response = await axiosInstance.post('/auth/invite/register/', {
@@ -69,13 +61,19 @@ export const AuthProvider = ({ children }) => {
 
         } catch (error) {
             setIsLoading(false);
-            console.error("Registration failed:", error.response?.data || error.message);
+            if (error && typeof error === 'object' && 'response' in error && error.response && typeof error.response === 'object' && 'data' in error.response) {
+                console.error("Registration failed:", error.response.data);
+            } else if (error instanceof Error) {
+                console.error("Registration failed:", error.message);
+            } else {
+                console.error("Registration failed:", error);
+            }
             throw error; // Re-throw for component-level error handling
         }
     }, []);
 
     // 2. Standard Login
-    const login = useCallback(async (email, password) => {
+    const login = useCallback(async (email: string, password: string) => {
         setIsLoading(true);
         try {
             const response = await axiosInstance.post('/auth/login/', {
@@ -97,7 +95,14 @@ export const AuthProvider = ({ children }) => {
 
         } catch (error) {
             setIsLoading(false);
-            console.error("Login failed:", error.response?.data || error.message);
+            if (error && typeof error === 'object' && 'response' in error && error.response && typeof error.response === 'object' && 'data' in error.response) {
+            
+                console.error("Login failed:", error.response.data);
+            } else if (error instanceof Error) {
+                console.error("Login failed:", error.message);
+            } else {
+                console.error("Login failed:", error);
+            }
             throw error;
         }
     }, []);
@@ -134,11 +139,3 @@ export const AuthProvider = ({ children }) => {
         </AuthContext.Provider>
     );
 };
-
-// 3. Custom Hook to consume the Auth Context easily
-export const useAuth = () => {
-    return useContext(AuthContext);
-};
-
-// Ensure you export AuthProvider and AuthContext for routing setup
-export default AuthContext;

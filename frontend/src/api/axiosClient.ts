@@ -12,24 +12,28 @@ const axiosInstance = axios.create({
 
 // 2. Request Interceptor: Attach Access Token
 
+import type { InternalAxiosRequestConfig } from 'axios';
+
 axiosInstance.interceptors.request.use(
-    async (config) => {
+    async (config: InternalAxiosRequestConfig) => {
         const accessToken = localStorage.getItem('access');
         
         // If an access token exists, attach it to the request headers
         if (accessToken) {
-            config.headers.Authorization = `Bearer ${accessToken}`;
+            if (config.headers) {
+                config.headers.Authorization = `Bearer ${accessToken}`;
+            }
         }
         return config;
     },
-    (error) => {
+    (error: unknown) => {
         return Promise.reject(error);
     }
 );
 
 // 3. Response Interceptor: Handle Token Refresh (401 Error)
 axiosInstance.interceptors.response.use(
-    (response) => {
+    (response: import('axios').AxiosResponse) => {
         // If the request was successful, just return the response
         return response;
     },

@@ -1,5 +1,4 @@
-import React from 'react';
-import TokenRegisterForm from '../../components/auth/TokenRegisterForm'; // Import the new component
+import TokenRegisterForm from '../../components/auth/TokenRegisterForm.js'; // Import the new component
 
 const TokenRegisterPage = () => {
   return (

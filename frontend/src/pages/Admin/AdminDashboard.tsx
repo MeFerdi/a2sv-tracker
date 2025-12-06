@@ -1,9 +1,8 @@
-import React from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../../context/authContext';
+import { useAuth } from '../../utils/Auth.tsx';
 
 const AdminDashboard = () => {
-  const { logout } = useAuth();
+  const {logout } = useAuth();
   
   return (
     <div className="p-8">

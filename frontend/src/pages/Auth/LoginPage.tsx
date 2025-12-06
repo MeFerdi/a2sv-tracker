@@ -1,5 +1,5 @@
-import React from 'react';
-import LoginForm from '../../components/auth/LoginForm'; // Import the new component
+import LoginForm from '../../components/auth/LoginForm.tsx'; // Import the new component
+
 const LoginPage = () => {
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-50">

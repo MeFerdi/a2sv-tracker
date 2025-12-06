@@ -1,9 +1,8 @@
-import React from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useAuth } from '../../context/authContext';
+import { useAuth } from '../../utils/Auth';
 // Assuming these ShadCN components are available:
 // import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 // import { Input } from '@/components/ui/input';
@@ -36,7 +35,7 @@ const TokenRegisterForm = () => {
   const { isSubmitting } = form.formState;
 
   // 2. Handle Form Submission
-  const onSubmit = async (values) => {
+  const onSubmit = async (values: { name: string; password: string; }) => {
     if (!token) {
       // toast({ title: "Error", description: "Registration token is missing.", variant: "destructive" });
       console.error("Registration token is missing.");
@@ -51,17 +50,25 @@ const TokenRegisterForm = () => {
       console.log("Registration successful! User:", result.user);
 
       // 3. Redirect based on role (Case-insensitive match for security)
-      const userRole = result.user.role.toLowerCase();
-      
-      if (userRole === 'admin') {
-        navigate('/admin', { replace: true });
+      if (result.user && result.user.role) {
+        const userRole = result.user.role.toLowerCase();
+        if (userRole === 'admin') {
+          navigate('/admin', { replace: true });
+        } else {
+          navigate('/applicant', { replace: true });
+        }
       } else {
-        navigate('/applicant', { replace: true });
+        // toast({ title: "Error", description: "User information is missing after registration.", variant: "destructive" });
+        console.error("User information is missing after registration.");
       }
 
     } catch (error) {
       // Handle API errors and display feedback
-      const errorMessage = error.response?.data?.detail || "Registration failed. Please check your inputs or the token might be expired.";
+      let errorMessage = "Registration failed. Please check your inputs or the token might be expired.";
+      if (error && typeof error === "object" && "response" in error) {
+        const err = error as { response?: { data?: { detail?: string } } };
+        errorMessage = err.response?.data?.detail || errorMessage;
+      }
       // toast({ title: "Error", description: errorMessage, variant: "destructive" });
       console.error("Registration failed:", errorMessage);
     }
@@ -69,7 +76,6 @@ const TokenRegisterForm = () => {
 
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-      {/* ⚠️ NOTE: Replace the divs with actual ShadCN <Form>, <FormField>, <Input>, and <Button> components */}
 
       {/* Name Field */}
       <div className="space-y-2">

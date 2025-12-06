@@ -1,5 +1,4 @@
-import React from 'react';
-import { useAuth } from '../../context/authContext'; // Import context for user info
+import { useAuth } from '../../utils/Auth.tsx'; // Import context for user info
 // import QuestionList from '@/components/dashboard/QuestionList';
 // import FinalizeButton from '@/components/dashboard/FinalizeButton';
 
@@ -9,7 +8,7 @@ const ApplicantDashboard = () => {
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Welcome, {user?.name || 'Applicant'}!</h1>
+        <h1 className="text-3xl font-bold">Welcome, {user?.email || 'Applicant'}!</h1>
         <button onClick={logout} className="px-4 py-2 bg-red-500 text-white rounded">Logout</button>
       </div>
       
