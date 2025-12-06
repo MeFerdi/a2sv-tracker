@@ -38,7 +38,7 @@ axiosInstance.interceptors.response.use(
         const originalRequest = error.config;
         
         // Check for 401 Unauthorized error AND ensure it hasn't been retried already
-        if (error.response.status === 401 && !originalRequest._retry) {
+        if (error.response?.status === 401 && !originalRequest._retry) {
             originalRequest._retry = true;
             
             const refreshToken = localStorage.getItem('refresh');
