@@ -1,7 +1,5 @@
 import React from 'react';
 import LoginForm from '../../components/auth/LoginForm'; // Import the new component
-import { Link } from 'react-router-dom';
-
 const LoginPage = () => {
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-50">
