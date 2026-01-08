@@ -10,7 +10,7 @@ from django.views.decorators.http import require_http_methods
 import csv
 
 from .models import InvitationToken, User, Question, Submission
-from .forms import InviteRegisterForm, LoginForm, QuestionForm
+from .forms import InviteRegisterForm, LoginForm, QuestionForm, SubmissionForm
 
 
 # Authentication Views
@@ -25,14 +25,6 @@ def register_view(request):
     
     try:
         invitation = InvitationToken.objects.get(token=token)
-        
-        if invitation.used:
-            messages.error(request, 'This invitation has already been used.')
-            return redirect('login')
-        
-        if invitation.expiry_date <= timezone.now():
-            messages.error(request, 'This invitation has expired.')
-            return redirect('login')
             
     except InvitationToken.DoesNotExist:
         messages.error(request, 'Invalid invitation token.')
@@ -42,6 +34,17 @@ def register_view(request):
         form = InviteRegisterForm(request.POST)
         if form.is_valid():
             with transaction.atomic():
+                # Re-fetch and lock the invitation to prevent race conditions
+                invitation = InvitationToken.objects.select_for_update().get(token=token)
+                
+                if invitation.used:
+                    messages.error(request, 'This invitation has already been used.')
+                    return redirect('login')
+                
+                if invitation.expiry_date <= timezone.now():
+                    messages.error(request, 'This invitation has expired.')
+                    return redirect('login')
+                
                 user = User.objects.create_user(
                     username=invitation.email,
                     email=invitation.email,
@@ -144,6 +147,7 @@ def applicant_dashboard(request):
         'total_count': total_count,
         'can_finalize': mandatory_count >= 15,
         'is_finalized': request.user.is_finalized,
+        'submission_form': SubmissionForm(),
     }
     
     return render(request, 'applicant/dashboard.html', context)
@@ -157,13 +161,15 @@ def submit_question(request, question_id):
         return JsonResponse({'error': 'Unauthorized'}, status=403)
     
     question = get_object_or_404(Question, id=question_id, is_active=True)
-    submission_link = request.POST.get('submission_link')
-    
-    if not submission_link:
-        messages.error(request, 'Submission link is required.')
+    form = SubmissionForm(request.POST)
+
+    if not form.is_valid():
+        messages.error(request, 'Please provide a valid submission URL.')
         return redirect('applicant_dashboard')
-    
-    # Create or update submission
+
+    submission_link = form.cleaned_data['submission_link']
+
+    # Create or update submission with validated data
     submission, created = Submission.objects.update_or_create(
         user=request.user,
         question=question,
