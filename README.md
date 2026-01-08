@@ -50,7 +50,7 @@ a2sv-tracker/
 ## Setup Instructions
 
 ### 1. Prerequisites
-- Python 3.10+
+- Python 3.10 (project tested with Python 3.10 and 3.11)
 - PostgreSQL database
 - pip (Python package manager)
 
