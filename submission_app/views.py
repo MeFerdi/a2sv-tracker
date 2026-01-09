@@ -17,63 +17,51 @@ from .forms import InviteRegisterForm, LoginForm, QuestionForm, SubmissionForm
 
 def register_view(request):
     """Register a user using an invitation token."""
-    token = request.GET.get('token')
-    
-    if not token:
-        messages.error(request, 'Invalid or missing invitation token.')
-        return redirect('login')
-    
-    try:
-        invitation = InvitationToken.objects.get(token=token)
-        
-        if invitation.used:
-            messages.error(request, 'This invitation has already been used.')
-            return redirect('login')
-        
-        if invitation.expiry_date <= timezone.now():
-            messages.error(request, 'This invitation has expired.')
-            return redirect('login')
-            
-    except InvitationToken.DoesNotExist:
-        messages.error(request, 'Invalid invitation token.')
-        return redirect('login')
-    
     if request.method == 'POST':
         form = InviteRegisterForm(request.POST)
         if form.is_valid():
-            with transaction.atomic():
-                # Re-fetch and lock the invitation to prevent race conditions
-                invitation = InvitationToken.objects.select_for_update().get(token=token)
-                
-                if invitation.used:
-                    messages.error(request, 'This invitation has already been used.')
-                    return redirect('login')
-                
-                if invitation.expiry_date <= timezone.now():
-                    messages.error(request, 'This invitation has expired.')
-                    return redirect('login')
-                
-                user = User.objects.create_user(
-                    username=invitation.email,
-                    email=invitation.email,
-                    password=form.cleaned_data['password'],
-                    first_name=form.cleaned_data['name'],
-                    role=User.Roles.APPLICANT
-                )
-                
-                invitation.used = True
-                invitation.save(update_fields=['used'])
-                
-                login(request, user)
-                messages.success(request, 'Registration successful!')
-                return redirect('applicant_dashboard')
+            token = form.cleaned_data['token']
+            
+            try:
+                with transaction.atomic():
+                    # Fetch and lock the invitation to prevent race conditions
+                    invitation = InvitationToken.objects.select_for_update().get(token=token)
+                    
+                    if invitation.used:
+                        messages.error(request, 'This invitation has already been used.')
+                        return redirect('login')
+                    
+                    if invitation.expiry_date <= timezone.now():
+                        messages.error(request, 'This invitation has expired.')
+                        return redirect('login')
+                    
+                    # Verify email matches the invitation
+                    if invitation.email != form.cleaned_data['email']:
+                        messages.error(request, 'Email does not match the invitation.')
+                        return render(request, 'auth/register.html', {'form': form})
+                    
+                    user = User.objects.create_user(
+                        username=invitation.email,
+                        email=invitation.email,
+                        password=form.cleaned_data['password'],
+                        first_name=form.cleaned_data['name'],
+                        role=User.Roles.APPLICANT
+                    )
+                    
+                    invitation.used = True
+                    invitation.save(update_fields=['used'])
+                    
+                    login(request, user)
+                    messages.success(request, 'Registration successful!')
+                    return redirect('applicant_dashboard')
+                    
+            except InvitationToken.DoesNotExist:
+                messages.error(request, 'Invalid invitation token.')
+                return render(request, 'auth/register.html', {'form': form})
     else:
-        form = InviteRegisterForm(initial={'email': invitation.email})
+        form = InviteRegisterForm()
     
-    return render(request, 'auth/register.html', {
-        'form': form,
-        'email': invitation.email
-    })
+    return render(request, 'auth/register.html', {'form': form})
 
 
 def login_view(request):
