@@ -25,6 +25,14 @@ def register_view(request):
     
     try:
         invitation = InvitationToken.objects.get(token=token)
+        
+        if invitation.used:
+            messages.error(request, 'This invitation has already been used.')
+            return redirect('login')
+        
+        if invitation.expiry_date <= timezone.now():
+            messages.error(request, 'This invitation has expired.')
+            return redirect('login')
             
     except InvitationToken.DoesNotExist:
         messages.error(request, 'Invalid invitation token.')
@@ -88,6 +96,7 @@ def login_view(request):
                 login(request, user)
                 
                 # Redirect based on role
+                user = User.objects.get(pk=user.pk)
                 if user.role == User.Roles.ADMIN:
                     return redirect('admin_dashboard')
                 return redirect('applicant_dashboard')
@@ -127,7 +136,7 @@ def applicant_dashboard(request):
     
     # Get user's submissions
     user_submissions = {
-        sub.question_id: sub
+        sub.question.pk: sub
         for sub in Submission.objects.filter(user=request.user).select_related('question')
     }
     
@@ -145,6 +154,7 @@ def applicant_dashboard(request):
         'user_submissions': user_submissions,
         'mandatory_count': mandatory_count,
         'total_count': total_count,
+        'remaining_mandatory': max(0, 15 - mandatory_count),
         'can_finalize': mandatory_count >= 15,
         'is_finalized': request.user.is_finalized,
         'submission_form': SubmissionForm(),
@@ -348,7 +358,7 @@ def export_applicants(request):
             rank,
             applicant.get_full_name() or applicant.first_name or applicant.username,
             applicant.email,
-            applicant.total_submissions,
+            getattr(applicant, 'total_submissions', 0),
             'Yes' if applicant.is_finalized else 'No'
         ])
     
