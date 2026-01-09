@@ -6,14 +6,25 @@
 <div class="flex justify-center items-center min-h-[80vh]">
     <div class="w-full max-w-md p-8 bg-white shadow-xl rounded-lg border border-gray-200">
         <h2 class="text-3xl font-extrabold mb-6 text-center text-gray-800">
-            A2SV Tracker Setup
+            Create Your Account
         </h2>
         <p class="text-center text-gray-600 mb-6">
-            Set your name and password to finalize your account.
+            Enter your invitation code and complete your registration.
         </p>
         
         <form method="post" class="space-y-4">
             {% csrf_token %}
+            
+            <div class="space-y-2">
+                <label for="{{ form.token.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                    Invitation Code
+                </label>
+                {{ form.token }}
+                {% if form.token.errors %}
+                    <p class="text-red-500 text-sm">{{ form.token.errors.0 }}</p>
+                {% endif %}
+                <p class="text-xs text-gray-500">{{ form.token.help_text }}</p>
+            </div>
             
             <div class="space-y-2">
                 <label for="{{ form.name.id_for_label }}" class="block text-sm font-medium text-gray-700">
@@ -30,6 +41,9 @@
                     Email Address
                 </label>
                 {{ form.email }}
+                {% if form.email.errors %}
+                    <p class="text-red-500 text-sm">{{ form.email.errors.0 }}</p>
+                {% endif %}
             </div>
             
             <div class="space-y-2">
@@ -57,13 +71,18 @@
             {% endif %}
             
             <button type="submit" class="w-full py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium">
-                Set Password and Register
+                Create Account
             </button>
         </form>
         
-        <p class="text-center text-sm text-gray-400 mt-6">
-            Your email is securely linked via the invitation token.
-        </p>
+        <div class="mt-6 text-center">
+            <p class="text-sm text-gray-600">
+                Already have an account? 
+                <a href="{% url 'login' %}" class="text-blue-600 hover:underline font-medium">
+                    Sign in here
+                </a>
+            </p>
+        </div>
     </div>
 </div>
 
