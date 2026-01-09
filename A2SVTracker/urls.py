@@ -1,56 +1,30 @@
 """
 URL configuration for A2SVTracker project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/5.2/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
-from rest_framework_simplejwt.views import TokenRefreshView
-
-from submission_app.views import (
-    InviteRegisterView,
-    LoginView,
-    ProfileView,
-    ApplicantQuestionListView,
-    FinalizeApplicationView,
-    QuestionAdminViewSet,
-    ApplicantTrackerView,
-)
-
-# Router for ViewSets
-router = DefaultRouter()
-router.register(r'admin/questions', QuestionAdminViewSet, basename='question')
+from django.urls import path
+from submission_app import views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     
-    # JWT Token endpoints
-    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    # Authentication
+    path('', views.login_view, name='home'),
+    path('login/', views.login_view, name='login'),
+    path('register/', views.register_view, name='register'),
+    path('logout/', views.logout_view, name='logout'),
     
-    # Authentication endpoints
-    path('api/auth/register/', InviteRegisterView.as_view(), name='invite_register'),
-    path('api/auth/login/', LoginView.as_view(), name='login'),
+    # Applicant routes
+    path('applicant/', views.applicant_dashboard, name='applicant_dashboard'),
+    path('applicant/submit/<int:question_id>/', views.submit_question, name='submit_question'),
+    path('applicant/finalize/', views.finalize_application, name='finalize_application'),
     
-    # Applicant endpoints
-    path('api/profile/', ProfileView.as_view(), name='profile'),
-    path('api/questions/', ApplicantQuestionListView.as_view(), name='applicant_questions'),
-    path('api/finalize/', FinalizeApplicationView.as_view(), name='finalize_application'),
-    
-    # Admin endpoints
-    path('api/admin/applicants/', ApplicantTrackerView.as_view(), name='applicant_tracker'),
-    
-    # Include router URLs for ViewSets
-    path('api/', include(router.urls)),
+    # Admin routes
+    path('admin-dashboard/', views.admin_dashboard, name='admin_dashboard'),
+    path('admin-dashboard/questions/', views.question_management, name='question_management'),
+    path('admin-dashboard/questions/create/', views.question_create, name='question_create'),
+    path('admin-dashboard/questions/<int:question_id>/edit/', views.question_edit, name='question_edit'),
+    path('admin-dashboard/questions/<int:question_id>/delete/', views.question_delete, name='question_delete'),
+    path('admin-dashboard/applicants/', views.applicant_tracker, name='applicant_tracker'),
+    path('admin-dashboard/applicants/export/', views.export_applicants, name='export_applicants'),
 ]

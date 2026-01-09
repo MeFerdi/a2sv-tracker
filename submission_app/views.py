@@ -1,261 +1,365 @@
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth import login, authenticate, logout
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
 from django.utils import timezone
 from django.db import transaction
 from django.db.models import Count
-from django.contrib.auth import get_user_model
-from typing import Any, Mapping
-
-from rest_framework import serializers, status
-from rest_framework.response import Response
-from rest_framework.views import APIView
-from rest_framework.viewsets import ModelViewSet
-from rest_framework.permissions import IsAuthenticated, BasePermission
-from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.views import TokenObtainPairView
+from django.http import JsonResponse, HttpResponse
+from django.views.decorators.http import require_http_methods
+import csv
 
 from .models import InvitationToken, User, Question, Submission
-from .serializers import RegisterSerializer, UserSerializer
+from .forms import InviteRegisterForm, LoginForm, QuestionForm, SubmissionForm
 
 
-class InviteRegisterView(APIView):
-    """
-    Register a user using an invitation token and return JWT tokens.
-    """
+# Authentication Views
 
-    def post(self, request, *args, **kwargs):
-        # Validate incoming data using RegisterSerializer
-        serializer = RegisterSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        data: Mapping[str, Any] = serializer.validated_data
-        token_value = data["token"]
-        name = data["name"]
-        password = data["password"]
-
-        # Retrieve the InvitationToken (already validated in serializer)
-
-        UserModel = get_user_model()
-
-        with transaction.atomic():
-            # Retrieve the InvitationToken with row-level lock
-            invitation = InvitationToken.objects.select_for_update().get(token=token_value)
-            # Create new User with email from token, name, role APPLICANT, and hashed password
-            user = UserModel.objects.create_user(
-                username=invitation.email,
-                email=invitation.email,
-                password=password,
-            )
-            # Set role to APPLICANT and name
-            if isinstance(user, User):
-                # Runtime assignment is valid; directive silences strict type-checker complaint
-                user.role = User.Roles.APPLICANT  # pyright: ignore[reportAssignmentType]
-                user.first_name = name
-                user.save()
-
-            # Mark token as used
-            invitation.used = True
-            invitation.save(update_fields=["used"])
-
-        # Generate JWT tokens using djangorestframework-simplejwt
-        refresh = RefreshToken.for_user(user)
-
-        return Response(
-            {
-                "refresh": str(refresh),
-                "access": str(refresh.access_token),
-            },
-            status=status.HTTP_201_CREATED,
-        )
-
-
-class LoginView(TokenObtainPairView):
-    """
-    Standard JWT login view that returns access and refresh tokens.
-    Inherits from TokenObtainPairView for standard JWT authentication.
-    """
-    pass
-
-
-class ProfileView(APIView):
-    """
-    Return basic profile information for the authenticated user.
-    """
-
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, *args, **kwargs):
-        user = request.user
-        serializer = UserSerializer(user)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-
-class ApplicantQuestionListView(APIView):
-    """
-    Return a list of all active questions, sorted by type and difficulty.
-    Annotated with the authenticated user's submission status and link.
-    """
-
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, *args, **kwargs):
-        user = request.user
+def register_view(request):
+    """Register a user using an invitation token."""
+    token = request.GET.get('token')
+    
+    if not token:
+        messages.error(request, 'Invalid or missing invitation token.')
+        return redirect('login')
+    
+    try:
+        invitation = InvitationToken.objects.get(token=token)
         
-        # Get all active questions, sorted by q_type then difficulty
-        questions = Question.objects.filter(is_active=True).order_by(
-            'q_type', 'difficulty'
-        )
+        if invitation.used:
+            messages.error(request, 'This invitation has already been used.')
+            return redirect('login')
         
-        # Prefetch user's submissions for these questions
-        user_submissions = {
-            sub.question_id: sub
-            for sub in Submission.objects.filter(
-                user=user,
-                question__in=questions
-            ).select_related('question')
-        }
-        
-        # Build response data
-        questions_data = []
-        for question in questions:
-            submission = user_submissions.get(question.id)
-            questions_data.append({
-                'id': question.id,
-                'title': question.title,
-                'leetcode_link': question.leetcode_link,
-                'q_type': question.q_type,
-                'difficulty': question.difficulty,
-                'is_active': question.is_active,
-                'submission': {
-                    'submitted': submission is not None,
-                    'submission_link': submission.submission_link if submission else None,
-                    'submitted_at': submission.submitted_at.isoformat() if submission else None,
-                } if submission else {
-                    'submitted': False,
-                    'submission_link': None,
-                    'submitted_at': None,
-                },
-            })
-        
-        return Response(questions_data, status=status.HTTP_200_OK)
+        if invitation.expiry_date <= timezone.now():
+            messages.error(request, 'This invitation has expired.')
+            return redirect('login')
+            
+    except InvitationToken.DoesNotExist:
+        messages.error(request, 'Invalid invitation token.')
+        return redirect('login')
+    
+    if request.method == 'POST':
+        form = InviteRegisterForm(request.POST)
+        if form.is_valid():
+            with transaction.atomic():
+                # Re-fetch and lock the invitation to prevent race conditions
+                invitation = InvitationToken.objects.select_for_update().get(token=token)
+                
+                if invitation.used:
+                    messages.error(request, 'This invitation has already been used.')
+                    return redirect('login')
+                
+                if invitation.expiry_date <= timezone.now():
+                    messages.error(request, 'This invitation has expired.')
+                    return redirect('login')
+                
+                user = User.objects.create_user(
+                    username=invitation.email,
+                    email=invitation.email,
+                    password=form.cleaned_data['password'],
+                    first_name=form.cleaned_data['name'],
+                    role=User.Roles.APPLICANT
+                )
+                
+                invitation.used = True
+                invitation.save(update_fields=['used'])
+                
+                login(request, user)
+                messages.success(request, 'Registration successful!')
+                return redirect('applicant_dashboard')
+    else:
+        form = InviteRegisterForm(initial={'email': invitation.email})
+    
+    return render(request, 'auth/register.html', {
+        'form': form,
+        'email': invitation.email
+    })
 
 
-class FinalizeApplicationView(APIView):
-    """
-    Finalize the user's application if they have submitted 15 mandatory questions.
-    """
-
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, *args, **kwargs):
-        user = request.user
-        
-        # Count submissions for MANDATORY questions
-        mandatory_submission_count = Submission.objects.filter(
-            user=user,
-            question__q_type=Question.QuestionType.MANDATORY
-        ).count()
-        
-        # Check if requirement is met
-        if mandatory_submission_count != 15:
-            return Response(
-                {
-                    "detail": f"Application cannot be finalized. You have submitted {mandatory_submission_count} mandatory questions. 15 mandatory submissions are required.",
-                    "mandatory_submission_count": mandatory_submission_count,
-                    "required_count": 15,
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        
-        # Set is_finalized to True
-        if isinstance(user, User):
-            user.is_finalized = True
-            user.save(update_fields=["is_finalized"])
-        
-        return Response(
-            {
-                "detail": "Application finalized successfully.",
-                "is_finalized": True,
-            },
-            status=status.HTTP_200_OK,
-        )
+def login_view(request):
+    """Standard login view."""
+    if request.user.is_authenticated:
+        if request.user.role == User.Roles.ADMIN:
+            return redirect('admin_dashboard')
+        return redirect('applicant_dashboard')
+    
+    if request.method == 'POST':
+        form = LoginForm(request.POST)
+        if form.is_valid():
+            email = form.cleaned_data['email']
+            password = form.cleaned_data['password']
+            
+            # Authenticate using email (username field stores email)
+            user = authenticate(request, username=email, password=password)
+            
+            if user is not None:
+                login(request, user)
+                
+                # Redirect based on role
+                user = User.objects.get(pk=user.pk)
+                if user.role == User.Roles.ADMIN:
+                    return redirect('admin_dashboard')
+                return redirect('applicant_dashboard')
+            else:
+                messages.error(request, 'Invalid email or password.')
+    else:
+        form = LoginForm()
+    
+    return render(request, 'auth/login.html', {'form': form})
 
 
-class IsAdminUser(BasePermission):
-    """
-    Custom permission to only allow users with role='ADMIN' to access the view.
-    """
-
-    def has_permission(self, request, view):
-        # Check if user is authenticated
-        if not request.user or not request.user.is_authenticated:
-            return False
-        
-        # Check if user has ADMIN role
-        if isinstance(request.user, User):
-            return request.user.role == User.Roles.ADMIN
-        
-        return False
+def logout_view(request):
+    """Logout the user."""
+    logout(request)
+    messages.info(request, 'You have been logged out.')
+    return redirect('login')
 
 
-class QuestionSerializer(serializers.ModelSerializer):
-    """
-    Serializer for Question model.
-    """
+# Applicant Views
 
-    class Meta:
-        model = Question
-        fields = ['id', 'title', 'leetcode_link', 'q_type', 'difficulty', 'is_active']
+@login_required
+def applicant_dashboard(request):
+    """Dashboard for applicants showing questions and progress."""
+    if request.user.role != User.Roles.APPLICANT:
+        return redirect('admin_dashboard')
+    
+    # Get all active questions
+    mandatory_questions = Question.objects.filter(
+        is_active=True,
+        q_type=Question.QuestionType.MANDATORY
+    ).order_by('difficulty')
+    
+    recommended_questions = Question.objects.filter(
+        is_active=True,
+        q_type=Question.QuestionType.RECOMMENDED
+    ).order_by('difficulty')
+    
+    # Get user's submissions
+    user_submissions = {
+        sub.question.pk: sub
+        for sub in Submission.objects.filter(user=request.user).select_related('question')
+    }
+    
+    # Calculate progress
+    mandatory_count = Submission.objects.filter(
+        user=request.user,
+        question__q_type=Question.QuestionType.MANDATORY
+    ).count()
+    
+    total_count = Submission.objects.filter(user=request.user).count()
+    
+    context = {
+        'mandatory_questions': mandatory_questions,
+        'recommended_questions': recommended_questions,
+        'user_submissions': user_submissions,
+        'mandatory_count': mandatory_count,
+        'total_count': total_count,
+        'remaining_mandatory': max(0, 15 - mandatory_count),
+        'can_finalize': mandatory_count >= 15,
+        'is_finalized': request.user.is_finalized,
+        'submission_form': SubmissionForm(),
+    }
+    
+    return render(request, 'applicant/dashboard.html', context)
 
 
-class QuestionAdminViewSet(ModelViewSet):
-    """
-    ViewSet for managing Question objects. Only accessible by ADMIN users.
-    Implements soft-deletion by setting is_active=False instead of deleting.
-    """
+@login_required
+@require_http_methods(["POST"])
+def submit_question(request, question_id):
+    """Submit a solution link for a question."""
+    if request.user.role != User.Roles.APPLICANT:
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+    
+    question = get_object_or_404(Question, id=question_id, is_active=True)
+    form = SubmissionForm(request.POST)
 
-    queryset = Question.objects.all()
-    serializer_class = QuestionSerializer
-    permission_classes = [IsAuthenticated, IsAdminUser]
+    if not form.is_valid():
+        messages.error(request, 'Please provide a valid submission URL.')
+        return redirect('applicant_dashboard')
 
-    def destroy(self, request, *args, **kwargs):
-        """
-        Soft-delete: Set is_active=False instead of actually deleting the question.
-        """
-        instance = self.get_object()
-        instance.is_active = False
-        instance.save(update_fields=['is_active'])
-        
-        return Response(
-            {"detail": "Question deactivated successfully."},
-            status=status.HTTP_200_OK,
-        )
+    submission_link = form.cleaned_data['submission_link']
+
+    # Create or update submission with validated data
+    submission, created = Submission.objects.update_or_create(
+        user=request.user,
+        question=question,
+        defaults={'submission_link': submission_link}
+    )
+    
+    action = 'submitted' if created else 'updated'
+    messages.success(request, f'Solution {action} successfully!')
+    return redirect('applicant_dashboard')
 
 
-class ApplicantTrackerView(APIView):
-    """
-    Admin view to track all applicants, ranked by their total submission count.
-    """
+@login_required
+@require_http_methods(["POST"])
+def finalize_application(request):
+    """Finalize the user's application."""
+    if request.user.role != User.Roles.APPLICANT:
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+    
+    mandatory_count = Submission.objects.filter(
+        user=request.user,
+        question__q_type=Question.QuestionType.MANDATORY
+    ).count()
+    
+    if mandatory_count < 15:
+        messages.error(request, f'You need to submit {15 - mandatory_count} more mandatory questions.')
+        return redirect('applicant_dashboard')
+    
+    request.user.is_finalized = True
+    request.user.save(update_fields=['is_finalized'])
+    
+    messages.success(request, 'Application finalized successfully!')
+    return redirect('applicant_dashboard')
 
-    permission_classes = [IsAuthenticated, IsAdminUser]
 
-    def get(self, request, *args, **kwargs):
-        # Get all applicants with their submission counts, ordered by count (descending)
-        applicants = User.objects.filter(
-            role=User.Roles.APPLICANT
-        ).annotate(
-            total_submissions=Count('submissions')
-        ).order_by('-total_submissions')
-        
-        # Build response data
-        applicants_data = []
-        for rank, applicant in enumerate(applicants, start=1):
-            applicants_data.append({
-                'rank': rank,
-                'id': applicant.id,
-                'username': applicant.username,
-                'email': applicant.email,
-                'name': applicant.get_full_name() or applicant.first_name or applicant.username,
-                'total_submissions': applicant.total_submissions,
-                'is_finalized': applicant.is_finalized,
-            })
-        
-        return Response(applicants_data, status=status.HTTP_200_OK)
+# Admin Views
+
+@login_required
+def admin_dashboard(request):
+    """Dashboard for admin users."""
+    if request.user.role != User.Roles.ADMIN:
+        return redirect('applicant_dashboard')
+    
+    # Get statistics
+    total_applicants = User.objects.filter(role=User.Roles.APPLICANT).count()
+    finalized_applicants = User.objects.filter(
+        role=User.Roles.APPLICANT,
+        is_finalized=True
+    ).count()
+    total_questions = Question.objects.filter(is_active=True).count()
+    total_submissions = Submission.objects.count()
+    
+    context = {
+        'total_applicants': total_applicants,
+        'finalized_applicants': finalized_applicants,
+        'total_questions': total_questions,
+        'total_submissions': total_submissions,
+    }
+    
+    return render(request, 'admin/dashboard.html', context)
+
+
+@login_required
+def question_management(request):
+    """Manage questions (CRUD operations)."""
+    if request.user.role != User.Roles.ADMIN:
+        return redirect('applicant_dashboard')
+    
+    questions = Question.objects.filter(is_active=True).order_by('q_type', 'difficulty')
+    
+    context = {
+        'questions': questions,
+    }
+    
+    return render(request, 'admin/questions.html', context)
+
+
+@login_required
+def question_create(request):
+    """Create a new question."""
+    if request.user.role != User.Roles.ADMIN:
+        return redirect('applicant_dashboard')
+    
+    if request.method == 'POST':
+        form = QuestionForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Question created successfully!')
+            return redirect('question_management')
+    else:
+        form = QuestionForm()
+    
+    return render(request, 'admin/question_form.html', {
+        'form': form,
+        'action': 'Create'
+    })
+
+
+@login_required
+def question_edit(request, question_id):
+    """Edit an existing question."""
+    if request.user.role != User.Roles.ADMIN:
+        return redirect('applicant_dashboard')
+    
+    question = get_object_or_404(Question, id=question_id)
+    
+    if request.method == 'POST':
+        form = QuestionForm(request.POST, instance=question)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Question updated successfully!')
+            return redirect('question_management')
+    else:
+        form = QuestionForm(instance=question)
+    
+    return render(request, 'admin/question_form.html', {
+        'form': form,
+        'action': 'Edit',
+        'question': question
+    })
+
+
+@login_required
+@require_http_methods(["POST"])
+def question_delete(request, question_id):
+    """Soft-delete a question."""
+    if request.user.role != User.Roles.ADMIN:
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+    
+    question = get_object_or_404(Question, id=question_id)
+    question.is_active = False
+    question.save(update_fields=['is_active'])
+    
+    messages.success(request, 'Question deactivated successfully!')
+    return redirect('question_management')
+
+
+@login_required
+def applicant_tracker(request):
+    """View and track all applicants."""
+    if request.user.role != User.Roles.ADMIN:
+        return redirect('applicant_dashboard')
+    
+    applicants = User.objects.filter(
+        role=User.Roles.APPLICANT
+    ).annotate(
+        total_submissions=Count('submissions')
+    ).order_by('-total_submissions')
+    
+    context = {
+        'applicants': applicants,
+    }
+    
+    return render(request, 'admin/applicants.html', context)
+
+
+@login_required
+def export_applicants(request):
+    """Export applicants data as CSV."""
+    if request.user.role != User.Roles.ADMIN:
+        return redirect('applicant_dashboard')
+    
+    applicants = User.objects.filter(
+        role=User.Roles.APPLICANT
+    ).annotate(
+        total_submissions=Count('submissions')
+    ).order_by('-total_submissions')
+    
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="applicants.csv"'
+    
+    writer = csv.writer(response)
+    writer.writerow(['Rank', 'Name', 'Email', 'Total Submissions', 'Finalized'])
+    
+    for rank, applicant in enumerate(applicants, start=1):
+        writer.writerow([
+            rank,
+            applicant.get_full_name() or applicant.first_name or applicant.username,
+            applicant.email,
+            getattr(applicant, 'total_submissions', 0),
+            'Yes' if applicant.is_finalized else 'No'
+        ])
+    
+    return response

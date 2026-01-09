@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+
+{% block title %}Admin Dashboard - A2SV Tracker{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <h1 class="text-3xl font-bold text-gray-900">Admin Panel Dashboard</h1>
+</div>
+
+<!-- Statistics Cards -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+    <div class="bg-blue-100 p-6 rounded-lg shadow">
+        <h3 class="text-lg font-semibold text-blue-800 mb-2">Total Applicants</h3>
+        <p class="text-4xl font-bold text-blue-600">{{ total_applicants }}</p>
+    </div>
+    
+    <div class="bg-green-100 p-6 rounded-lg shadow">
+        <h3 class="text-lg font-semibold text-green-800 mb-2">Finalized</h3>
+        <p class="text-4xl font-bold text-green-600">{{ finalized_applicants }}</p>
+    </div>
+    
+    <div class="bg-yellow-100 p-6 rounded-lg shadow">
+        <h3 class="text-lg font-semibold text-yellow-800 mb-2">Active Questions</h3>
+        <p class="text-4xl font-bold text-yellow-600">{{ total_questions }}</p>
+    </div>
+    
+    <div class="bg-purple-100 p-6 rounded-lg shadow">
+        <h3 class="text-lg font-semibold text-purple-800 mb-2">Total Submissions</h3>
+        <p class="text-4xl font-bold text-purple-600">{{ total_submissions }}</p>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <a href="{% url 'question_management' %}" class="block p-6 bg-blue-50 border-2 border-blue-200 rounded-lg hover:bg-blue-100 transition">
+        <h2 class="text-2xl font-semibold text-blue-800 mb-2">📝 Manage Questions</h2>
+        <p class="text-gray-700">Create, edit, or deactivate questions (CRUD).</p>
+    </a>
+    
+    <a href="{% url 'applicant_tracker' %}" class="block p-6 bg-green-50 border-2 border-green-200 rounded-lg hover:bg-green-100 transition">
+        <h2 class="text-2xl font-semibold text-green-800 mb-2">🥇 Applicant Ranking</h2>
+        <p class="text-gray-700">View rankings, status, and export data.</p>
+    </a>
+    
+    <div class="p-6 bg-yellow-50 border-2 border-yellow-200 rounded-lg">
+        <h2 class="text-2xl font-semibold text-yellow-800 mb-2">📧 Invitation Utility</h2>
+        <p class="text-gray-700">Generate and manage invite tokens.</p>
+        <p class="text-sm text-gray-500 mt-2">(Use Django admin panel)</p>
+    </div>
+</div>
+{% endblock %}
