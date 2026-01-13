@@ -6,7 +6,7 @@ from django.urls import path
 from submission_app import views
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    path('django-admin/', admin.site.urls),
     
     # Authentication
     path('', views.login_view, name='home'),
