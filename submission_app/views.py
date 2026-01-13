@@ -7,6 +7,7 @@ from django.db import transaction
 from django.db.models import Count
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_http_methods
+from django.contrib.auth import get_user_model
 import csv
 
 from .models import InvitationToken, User, Question, Submission
@@ -59,7 +60,9 @@ def register_view(request):
                 messages.error(request, 'Invalid invitation token.')
                 return render(request, 'auth/register.html', {'form': form})
     else:
-        form = InviteRegisterForm()
+        # Pre-fill token from URL parameter if provided
+        token = request.GET.get('token', '')
+        form = InviteRegisterForm(initial={'token': token})
     
     return render(request, 'auth/register.html', {'form': form})
 
@@ -67,7 +70,7 @@ def register_view(request):
 def login_view(request):
     """Standard login view."""
     if request.user.is_authenticated:
-        if request.user.role == User.Roles.ADMIN:
+        if request.user.is_staff or request.user.role == User.Roles.ADMIN:
             return redirect('admin_dashboard')
         return redirect('applicant_dashboard')
     
@@ -83,9 +86,8 @@ def login_view(request):
             if user is not None:
                 login(request, user)
                 
-                # Redirect based on role
-                user = User.objects.get(pk=user.pk)
-                if user.role == User.Roles.ADMIN:
+                # Redirect based on role or staff status
+                if user.is_staff or user.role == User.Roles.ADMIN:
                     return redirect('admin_dashboard')
                 return redirect('applicant_dashboard')
             else:
@@ -207,7 +209,7 @@ def finalize_application(request):
 @login_required
 def admin_dashboard(request):
     """Dashboard for admin users."""
-    if request.user.role != User.Roles.ADMIN:
+    if request.user.role != User.Roles.ADMIN and not request.user.is_staff:
         return redirect('applicant_dashboard')
     
     # Get statistics
