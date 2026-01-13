@@ -5,6 +5,16 @@ from .models import Question, Submission
 
 class InviteRegisterForm(forms.Form):
     """Form for registering with an invitation token."""
+    token = forms.CharField(
+        max_length=6,
+        min_length=6,
+        widget=forms.TextInput(attrs={
+            'class': 'form-input',
+            'placeholder': '6-digit code',
+            'maxlength': '6'
+        }),
+        help_text='Enter the 6-digit code from your invitation email'
+    )
     name = forms.CharField(
         max_length=150,
         widget=forms.TextInput(attrs={
@@ -13,9 +23,9 @@ class InviteRegisterForm(forms.Form):
         })
     )
     email = forms.EmailField(
-        disabled=True,
         widget=forms.EmailInput(attrs={
-            'class': 'form-input bg-gray-100',
+            'class': 'form-input',
+            'placeholder': 'Email Address'
         })
     )
     password = forms.CharField(
@@ -31,6 +41,12 @@ class InviteRegisterForm(forms.Form):
             'placeholder': 'Confirm Password'
         })
     )
+    
+    def clean_token(self):
+        token = self.cleaned_data.get('token')
+        if token and not token.isalnum():
+            raise ValidationError('Token must contain only letters and numbers.')
+        return token
     
     def clean(self):
         cleaned_data = super().clean()

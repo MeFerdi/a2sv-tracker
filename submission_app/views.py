@@ -7,6 +7,7 @@ from django.db import transaction
 from django.db.models import Count
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_http_methods
+from django.contrib.auth import get_user_model
 import csv
 
 from .models import InvitationToken, User, Question, Submission
@@ -17,69 +18,59 @@ from .forms import InviteRegisterForm, LoginForm, QuestionForm, SubmissionForm
 
 def register_view(request):
     """Register a user using an invitation token."""
-    token = request.GET.get('token')
-    
-    if not token:
-        messages.error(request, 'Invalid or missing invitation token.')
-        return redirect('login')
-    
-    try:
-        invitation = InvitationToken.objects.get(token=token)
-        
-        if invitation.used:
-            messages.error(request, 'This invitation has already been used.')
-            return redirect('login')
-        
-        if invitation.expiry_date <= timezone.now():
-            messages.error(request, 'This invitation has expired.')
-            return redirect('login')
-            
-    except InvitationToken.DoesNotExist:
-        messages.error(request, 'Invalid invitation token.')
-        return redirect('login')
-    
     if request.method == 'POST':
         form = InviteRegisterForm(request.POST)
         if form.is_valid():
-            with transaction.atomic():
-                # Re-fetch and lock the invitation to prevent race conditions
-                invitation = InvitationToken.objects.select_for_update().get(token=token)
-                
-                if invitation.used:
-                    messages.error(request, 'This invitation has already been used.')
-                    return redirect('login')
-                
-                if invitation.expiry_date <= timezone.now():
-                    messages.error(request, 'This invitation has expired.')
-                    return redirect('login')
-                
-                user = User.objects.create_user(
-                    username=invitation.email,
-                    email=invitation.email,
-                    password=form.cleaned_data['password'],
-                    first_name=form.cleaned_data['name'],
-                    role=User.Roles.APPLICANT
-                )
-                
-                invitation.used = True
-                invitation.save(update_fields=['used'])
-                
-                login(request, user)
-                messages.success(request, 'Registration successful!')
-                return redirect('applicant_dashboard')
+            token = form.cleaned_data['token']
+            
+            try:
+                with transaction.atomic():
+                    # Fetch and lock the invitation to prevent race conditions
+                    invitation = InvitationToken.objects.select_for_update().get(token=token)
+                    
+                    if invitation.used:
+                        messages.error(request, 'This invitation has already been used.')
+                        return redirect('login')
+                    
+                    if invitation.expiry_date <= timezone.now():
+                        messages.error(request, 'This invitation has expired.')
+                        return redirect('login')
+                    
+                    # Verify email matches the invitation
+                    if invitation.email != form.cleaned_data['email']:
+                        messages.error(request, 'Email does not match the invitation.')
+                        return render(request, 'auth/register.html', {'form': form})
+                    
+                    user = User.objects.create_user(
+                        username=invitation.email,
+                        email=invitation.email,
+                        password=form.cleaned_data['password'],
+                        first_name=form.cleaned_data['name'],
+                        role=User.Roles.APPLICANT
+                    )
+                    
+                    invitation.used = True
+                    invitation.save(update_fields=['used'])
+                    
+                    login(request, user)
+                    messages.success(request, 'Registration successful!')
+                    return redirect('applicant_dashboard')
+                    
+            except InvitationToken.DoesNotExist:
+                messages.error(request, 'Invalid invitation token.')
+                return render(request, 'auth/register.html', {'form': form})
     else:
-        form = InviteRegisterForm(initial={'email': invitation.email})
+        # Pre-fill token from URL parameter if provided
+        token = request.GET.get('token', '')
+        form = InviteRegisterForm(initial={'token': token})
     
-    return render(request, 'auth/register.html', {
-        'form': form,
-        'email': invitation.email
-    })
+    return render(request, 'auth/register.html', {'form': form})
 
 
 def login_view(request):
     """Standard login view."""
     if request.user.is_authenticated:
-        if request.user.role == User.Roles.ADMIN:
+        if request.user.is_staff or request.user.role == User.Roles.ADMIN:
             return redirect('admin_dashboard')
         return redirect('applicant_dashboard')
     
@@ -95,9 +86,8 @@ def login_view(request):
             if user is not None:
                 login(request, user)
                 
-                # Redirect based on role
-                user = User.objects.get(pk=user.pk)
-                if user.role == User.Roles.ADMIN:
+                # Redirect based on role or staff status
+                if user.is_staff or user.role == User.Roles.ADMIN:
                     return redirect('admin_dashboard')
                 return redirect('applicant_dashboard')
             else:
@@ -219,7 +209,7 @@ def finalize_application(request):
 @login_required
 def admin_dashboard(request):
     """Dashboard for admin users."""
-    if request.user.role != User.Roles.ADMIN:
+    if request.user.role != User.Roles.ADMIN and not request.user.is_staff:
         return redirect('applicant_dashboard')
     
     # Get statistics

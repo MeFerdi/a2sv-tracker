@@ -37,9 +37,17 @@
             </button>
         </form>
         
-        <p class="text-center text-sm text-gray-500 mt-6">
-            Trouble logging in? Contact the A2SV team.
-        </p>
+        <div class="mt-6 text-center">
+            <p class="text-sm text-gray-600">
+                Don't have an account? 
+                <a href="{% url 'register' %}" class="text-blue-600 hover:underline font-medium">
+                    Sign up with invitation code
+                </a>
+            </p>
+            <p class="text-sm text-gray-500 mt-2">
+                Trouble logging in? Contact the A2SV team.
+            </p>
+        </div>
     </div>
 </div>
 
