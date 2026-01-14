@@ -27,7 +27,9 @@ SECRET_KEY = os.getenv("SECRET_KEY") or "django-insecure-dev-key"
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "False") == "True"
 
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+# Allow configuring hosts via env; default to wildcard for hosted environments
+_allowed_hosts = os.getenv("ALLOWED_HOSTS", "*")
+ALLOWED_HOSTS = [host.strip() for host in _allowed_hosts.split(",") if host.strip()]
 
 # CSRF and CORS settings
 CSRF_TRUSTED_ORIGINS = [
