@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: a2sv-tracker
+    runtime: python
+    pythonVersion: 3.13
+    startCommand: "gunicorn A2SVTracker.wsgi:application --bind 0.0.0.0:$PORT"
+    buildCommand: |
+      pip install -r requirements.txt && \
+      python manage.py collectstatic --noinput
+    preDeployCommand: "python manage.py migrate"
+    envVars:
+      - key: DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALLOWED_HOSTS
+        value: ".onrender.com"
+
+  - type: pserv
+    name: a2sv-tracker-db
+    runtime: postgres
+    databaseName: a2svtracker_prod
+    ipAllowList: []
+
