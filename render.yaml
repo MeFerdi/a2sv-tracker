@@ -3,7 +3,7 @@ services:
     name: a2sv-tracker
     runtime: python
     pythonVersion: 3.13
-    startCommand: "gunicorn A2SVTracker.wsgi:application --bind 0.0.0.0:$PORT"
+    startCommand: "bash start.sh"
     buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --noinput"
     envVars:
       - key: DEBUG
