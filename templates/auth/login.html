@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+
+{% block title %}Login - A2SV Tracker{% endblock %}
+
+{% block content %}
+<div class="flex justify-center items-center min-h-[80vh]">
+    <div class="w-full max-w-md p-8 bg-white shadow-xl rounded-lg border border-gray-200">
+        <h2 class="text-3xl font-extrabold mb-6 text-center text-gray-800">
+            Sign In to A2SV Tracker
+        </h2>
+        
+        <form method="post" class="space-y-4">
+            {% csrf_token %}
+            
+            <div class="space-y-2">
+                <label for="{{ form.email.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                    Email Address
+                </label>
+                {{ form.email }}
+                {% if form.email.errors %}
+                    <p class="text-red-500 text-sm">{{ form.email.errors.0 }}</p>
+                {% endif %}
+            </div>
+            
+            <div class="space-y-2">
+                <label for="{{ form.password.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                    Password
+                </label>
+                {{ form.password }}
+                {% if form.password.errors %}
+                    <p class="text-red-500 text-sm">{{ form.password.errors.0 }}</p>
+                {% endif %}
+            </div>
+            
+            <button type="submit" class="w-full py-2 bg-green-600 text-white rounded hover:bg-green-700 font-medium">
+                Login
+            </button>
+        </form>
+        
+        <div class="mt-6 text-center">
+            <p class="text-sm text-gray-600">
+                Don't have an account? 
+                <a href="{% url 'register' %}" class="text-blue-600 hover:underline font-medium">
+                    Sign up with invitation code
+                </a>
+            </p>
+            <p class="text-sm text-gray-500 mt-2">
+                Trouble logging in? Contact the A2SV team.
+            </p>
+        </div>
+    </div>
+</div>
+
+<style>
+    .form-input {
+        @apply w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500;
+    }
+</style>
+{% endblock %}

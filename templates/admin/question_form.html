@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ action }} Question - A2SV Tracker{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <h1 class="text-3xl font-bold text-gray-900">{{ action }} Question</h1>
+</div>
+
+<div class="max-w-2xl bg-white rounded-lg shadow p-6">
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+        
+        <div class="space-y-2">
+            <label for="{{ form.title.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                Question Title
+            </label>
+            {{ form.title }}
+            {% if form.title.errors %}
+                <p class="text-red-500 text-sm">{{ form.title.errors.0 }}</p>
+            {% endif %}
+        </div>
+        
+        <div class="space-y-2">
+            <label for="{{ form.leetcode_link.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                LeetCode Link
+            </label>
+            {{ form.leetcode_link }}
+            {% if form.leetcode_link.errors %}
+                <p class="text-red-500 text-sm">{{ form.leetcode_link.errors.0 }}</p>
+            {% endif %}
+        </div>
+        
+        <div class="grid grid-cols-2 gap-4">
+            <div class="space-y-2">
+                <label for="{{ form.q_type.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                    Question Type
+                </label>
+                {{ form.q_type }}
+                {% if form.q_type.errors %}
+                    <p class="text-red-500 text-sm">{{ form.q_type.errors.0 }}</p>
+                {% endif %}
+            </div>
+            
+            <div class="space-y-2">
+                <label for="{{ form.difficulty.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                    Difficulty
+                </label>
+                {{ form.difficulty }}
+                {% if form.difficulty.errors %}
+                    <p class="text-red-500 text-sm">{{ form.difficulty.errors.0 }}</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="flex items-center space-x-2">
+            {{ form.is_active }}
+            <label for="{{ form.is_active.id_for_label }}" class="text-sm font-medium text-gray-700">
+                Active
+            </label>
+            {% if form.is_active.errors %}
+                <p class="text-red-500 text-sm">{{ form.is_active.errors.0 }}</p>
+            {% endif %}
+        </div>
+        
+        <div class="flex gap-2">
+            <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">
+                {{ action }} Question
+            </button>
+            <a href="{% url 'question_management' %}" class="bg-gray-300 text-gray-700 px-6 py-2 rounded hover:bg-gray-400">
+                Cancel
+            </a>
+        </div>
+    </form>
+</div>
+
+<style>
+    .form-input, .form-select {
+        @apply w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500;
+    }
+    .form-checkbox {
+        @apply h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded;
+    }
+</style>
+{% endblock %}

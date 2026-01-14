@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+
+{% block title %}Applicant Tracker - A2SV Tracker{% endblock %}
+
+{% block content %}
+<div class="mb-8 flex justify-between items-center">
+    <h1 class="text-3xl font-bold text-gray-900">Applicant Ranking & Tracker</h1>
+    <a href="{% url 'export_applicants' %}" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+        📥 Export as CSV
+    </a>
+</div>
+
+<div class="bg-white rounded-lg shadow overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Submissions</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for applicant in applicants %}
+                <tr class="{% if applicant.is_finalized %}bg-green-50{% endif %}">
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="font-bold text-lg text-gray-700">#{{ forloop.counter }}</span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm font-medium text-gray-900">
+                            {{ applicant.get_full_name|default:applicant.first_name|default:applicant.username }}
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm text-gray-500">{{ applicant.email }}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full 
+                            {% if applicant.total_submissions >= 30 %}bg-green-100 text-green-800
+                            {% elif applicant.total_submissions >= 15 %}bg-yellow-100 text-yellow-800
+                            {% else %}bg-red-100 text-red-800{% endif %}">
+                            {{ applicant.total_submissions }} / 40
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        {% if applicant.is_finalized %}
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                ✓ Finalized
+                            </span>
+                        {% else %}
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                                In Progress
+                            </span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="px-6 py-4 text-center text-gray-500">
+                        No applicants found.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+    <h3 class="font-semibold text-blue-800 mb-2">Legend:</h3>
+    <ul class="text-sm text-gray-700 space-y-1">
+        <li>• <span class="font-medium text-green-600">Green rows</span>: Finalized applications</li>
+        <li>• Applicants are ranked by total submissions (highest to lowest)</li>
+        <li>• 15 mandatory questions minimum required to finalize</li>
+    </ul>
+</div>
+{% endblock %}
